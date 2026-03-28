@@ -1,5 +1,8 @@
 # flex2rijk
 
+[![PyPI version](https://badge.fury.io/py/flex2rijk.svg)](https://badge.fury.io/py/flex2rijk)
+[![CI & Publish](https://github.com/tijnschouten/flex2rijk/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/tijnschouten/flex2rijk/actions/workflows/pypi-publish.yml)
+
 Automatiseert de login op flex2rijk.nl:
 
 - **Cross-platform:** Werkt op macOS, Windows en Linux.

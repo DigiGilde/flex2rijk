@@ -198,11 +198,9 @@ def _run_browser(
     headless: bool, username: str, password: str, otp: Optional[str], download_dir: Path
 ) -> Optional[Path]:
     """Start de browser en voer de login uit."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("[!] Playwright niet gevonden. Installeer met: uv pip install playwright")
-        sys.exit(1)
+    _ensure_playwright_browsers()
+
+    from playwright.sync_api import sync_playwright
 
     print("[→] Browser starten...")
     with sync_playwright() as p:
@@ -217,6 +215,23 @@ def _run_browser(
 
         browser.close()
         return ica_path
+
+
+def _ensure_playwright_browsers() -> None:
+    """Controleer of Playwright browsers zijn geïnstalleerd, installeer ze zo niet."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            # Probeer browser te starten om te checken of deze er is
+            browser = p.chromium.launch()
+            browser.close()
+    except (ImportError, Exception):  # pylint: disable=broad-exception-caught
+        print("[→] Playwright browser (Chromium) niet gevonden. Installeren...")
+        # Installeer alleen chromium (is sneller en kleiner dan alles)
+        cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+        subprocess.run(cmd, check=True)
+        print("[✓] Chromium succesvol geïnstalleerd.")
 
 
 def _perform_page_login(page: Any, username: str, password: str, otp: Optional[str]) -> None:
