@@ -4,6 +4,9 @@ flex2rijk.py — Automatische login voor flex2rijk.nl Citrix werkplek
 
 Slaat credentials veilig op, vraagt de OneSpan 2FA code interactief op,
 en download + opent het ICA bestand.
+
+DISCLAIMER: Deze tool is niet geassocieerd met flex2rijk.nl. Gebruik is op eigen risico.
+De auteur biedt geen support en is niet verantwoordelijk voor eventueel verlies van data.
 """
 
 import argparse

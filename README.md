@@ -10,6 +10,14 @@ Automatiseert de login op flex2rijk.nl:
 - **Modern:** Volledig herschreven in moderne Python (Pathlib, Type Hinting).
 - **Robuust:** Bevat unit tests en strikte linting (Ruff, MyPy, Pylint).
 
+## Disclaimer
+
+**Let op:** Deze tool is **geen** officieel product van flex2rijk of de betrokken overheidsinstanties. De auteur is op geen enkele wijze geassocieerd met flex2rijk.nl.
+
+- **Geen Support:** Deze tool wordt geleverd "as-is" zonder enige vorm van garantie of support.
+- **Eigen Risico:** Het gebruik van deze tool is volledig voor eigen risico. De auteur is niet verantwoordelijk voor eventuele schade, verlies van gegevens, of beveiligingsincidenten (zoals het verlies van wachtwoorden).
+- **Doel:** Deze tool is uitsluitend bedoeld om de login-flow te automatiseren voor gebruikers die reeds rechtmatige toegang hebben tot de flex2rijk omgeving.
+
 ---
 
 ## Installatie

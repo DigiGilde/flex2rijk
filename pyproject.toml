@@ -3,6 +3,7 @@ name = "flex2rijk"
 version = "0.1.0"
 description = "Automatische login tool voor flex2rijk.nl Citrix werkplek"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [
     { name = "Tijn Schouten" },
