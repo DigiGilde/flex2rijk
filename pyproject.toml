@@ -2,10 +2,20 @@
 name = "flex2rijk"
 version = "0.1.0"
 description = "Automatische login tool voor flex2rijk.nl Citrix werkplek"
+readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    { name = "Tijn Schouten" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "playwright>=1.40",
     "keyring>=24.0.0",
+    "keyrings-alt>=5.0.2",
 ]
 
 [project.optional-dependencies]

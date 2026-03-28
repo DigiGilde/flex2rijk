@@ -12,6 +12,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,42 +25,86 @@ KEYCHAIN_SERVICE = "flex2rijk"
 LOGIN_URL = "https://www.flex2rijk.nl/logon/LogonPoint/tmindex.html"
 
 
-# ── Credential helpers (Cross-platform) ───────────────────────────────────────
+# ── Credential helpers (Multi-platform) ───────────────────────────────────────
 
 
 def keychain_get(account: str) -> str:
     """Lees een waarde uit het systeem-credential-beheer."""
+    if platform.system() == "Darwin":
+        return _macos_keychain_get(account)
+    return _keyring_get(account)
+
+
+def keychain_set(account: str, password: str) -> None:
+    """Sla een waarde op in het systeem-credential-beheer."""
+    if platform.system() == "Darwin":
+        _macos_keychain_set(account, password)
+    else:
+        _keyring_set(account, password)
+
+
+def _macos_keychain_get(account: str) -> str:
+    """Lees een waarde direct uit de macOS Keychain via de 'security' CLI."""
+    cmd = ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        print(f"[!] Kan '{account}' niet vinden in macOS Keychain.")
+        print("    Voer eerst uit: flex2rijk --setup")
+        sys.exit(1)
+    return result.stdout.strip()
+
+
+def _macos_keychain_set(account: str, password: str) -> None:
+    """Sla een waarde op in de macOS Keychain via de 'security' CLI."""
+    # Verwijder eerst om 'already exists' fouten te voorkomen
+    del_cmd = ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account]
+    subprocess.run(del_cmd, capture_output=True, check=False)
+
+    add_cmd = [
+        "security",
+        "add-generic-password",
+        "-s",
+        KEYCHAIN_SERVICE,
+        "-a",
+        account,
+        "-w",
+        password,
+    ]
+    result = subprocess.run(add_cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        print(f"[!] Fout bij opslaan in macOS Keychain: {result.stderr}")
+        sys.exit(1)
+    print(f"[✓] '{account}' opgeslagen in macOS Keychain.")
+
+
+def _keyring_get(account: str) -> str:
+    """Lees een waarde via de 'keyring' bibliotheek (Windows/Linux)."""
     if not keyring:
-        print("[!] Keyring-bibliotheek niet gevonden. Installeer deze met: pip install keyring")
+        print("[!] Keyring-bibliotheek niet gevonden.")
         sys.exit(1)
 
     password = keyring.get_password(KEYCHAIN_SERVICE, account)
     if not password:
-        msg = f"[!] Kan '{account}' niet vinden in het systeem-credential-beheer."
-        print(msg)
+        print(f"[!] Kan '{account}' niet vinden in credential-beheer.")
         print("    Voer eerst uit: flex2rijk --setup")
         sys.exit(1)
     return str(password)
 
 
-def keychain_set(account: str, password: str) -> None:
-    """Sla een waarde op in het systeem-credential-beheer."""
+def _keyring_set(account: str, password: str) -> None:
+    """Sla een waarde op via de 'keyring' bibliotheek (Windows/Linux)."""
     if not keyring:
-        print("[!] Keyring-bibliotheek niet gevonden. Installeer deze met: pip install keyring")
+        print("[!] Keyring-bibliotheek niet gevonden.")
         sys.exit(1)
 
     try:
-        keychain_set_with_keyring(account, password)
+        keyring.set_password(KEYCHAIN_SERVICE, account, password)
     except (OSError, RuntimeError) as e:
         print(f"[!] Fout bij opslaan in credential-beheer: {e}")
+        print("\nTip voor Linux: Installeer 'keyrings.alt' voor headless omgevingen:")
+        print("    uv add keyrings.alt")
         sys.exit(1)
-    print(f"[✓] '{account}' opgeslagen in credential-beheer onder service '{KEYCHAIN_SERVICE}'")
-
-
-def keychain_set_with_keyring(account: str, password: str) -> None:
-    """Helper om keyring.set_password aan te roepen (voor complexiteitsbeheer)."""
-    if keyring:
-        keyring.set_password(KEYCHAIN_SERVICE, account, password)
+    print(f"[✓] '{account}' opgeslagen in credential-beheer.")
 
 
 def setup() -> None:
@@ -67,6 +112,8 @@ def setup() -> None:
     import getpass
 
     print("=== flex2rijk Setup ===")
+    backend = "macOS Keychain" if platform.system() == "Darwin" else "System Keyring"
+    print(f"Gebruikt backend: {backend}")
     print(f"Credentials worden opgeslagen onder service: '{KEYCHAIN_SERVICE}'\n")
 
     username = input("Gebruikersnaam (bijv. RWS\\tijn.example of email): ").strip()
@@ -81,37 +128,45 @@ def setup() -> None:
 
 
 def _open_ica_macos(path: Path) -> None:
-    """Open het ICA bestand op macOS."""
-    with subprocess.Popen(["open", str(path)]) as _:
+    """Open het ICA bestand op macOS met subprocess.Popen."""
+    with subprocess.Popen(["open", str(path.absolute())]) as _:
         pass
 
 
 def _open_ica_windows(path: Path) -> None:
     """Open het ICA bestand op Windows."""
     if hasattr(os, "startfile"):
-        os.startfile(str(path))
+        os.startfile(str(path.absolute()))
     else:
         print("[!] os.startfile niet beschikbaar op dit systeem.")
 
 
 def _open_ica_linux(path: Path) -> None:
-    """Open het ICA bestand op Linux."""
-    with subprocess.Popen(["xdg-open", str(path)]) as _:
+    """Open het ICA bestand op Linux met subprocess.Popen."""
+    with subprocess.Popen(["xdg-open", str(path.absolute())]) as _:
         pass
+
+
+def _dispatch_open(current_os: str, path: Path) -> None:
+    """Stuur het openen van het bestand naar de juiste OS-functie."""
+    if current_os == "darwin":
+        _open_ica_macos(path)
+    elif current_os == "windows":
+        _open_ica_windows(path)
+    else:
+        _open_ica_linux(path)
 
 
 def open_ica(path: Path) -> None:
     """Open het ICA bestand met Citrix Workspace op een cross-platform manier."""
-    print(f"[→] ICA bestand openen: {path}")
+    if not path.exists():
+        print(f"[!] Fout: ICA bestand niet gevonden op {path}")
+        return
 
+    print(f"[→] ICA bestand openen: {path}")
     current_os = platform.system().lower()
     try:
-        if current_os == "darwin":
-            _open_ica_macos(path)
-        elif current_os == "windows":
-            _open_ica_windows(path)
-        else:
-            _open_ica_linux(path)
+        _dispatch_open(current_os, path)
     except (OSError, subprocess.SubprocessError) as e:
         print(f"[!] Kon ICA bestand niet automatisch openen: {e}")
         print(f"    Open het bestand handmatig: {path}")
@@ -122,36 +177,46 @@ def open_ica(path: Path) -> None:
 
 def login(headless: bool = True, otp: Optional[str] = None) -> None:
     """Voer de volledige login-flow uit."""
+    username = keychain_get("username")
+    password = keychain_get("password")
+
+    print(f"[✓] Credentials geladen voor: {username}")
+
+    with tempfile.TemporaryDirectory(prefix="flex2rijk_") as download_dir:
+        ica_path = _run_browser(headless, username, password, otp, Path(download_dir))
+
+        if ica_path:
+            open_ica(ica_path)
+            print("[✓] Klaar! Citrix Workspace wordt geopend.")
+            # Geef de applicatie de tijd om het bestand te laden voordat de map verdwijnt
+            time.sleep(15)
+        else:
+            print("[!] Geen ICA bestand gevonden.")
+
+
+def _run_browser(
+    headless: bool, username: str, password: str, otp: Optional[str], download_dir: Path
+) -> Optional[Path]:
+    """Start de browser en voer de login uit."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         print("[!] Playwright niet gevonden. Installeer met: uv pip install playwright")
         sys.exit(1)
 
-    username = keychain_get("username")
-    password = keychain_get("password")
-
-    print(f"[✓] Credentials geladen voor: {username}")
     print("[→] Browser starten...")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
 
-    with tempfile.TemporaryDirectory(prefix="flex2rijk_") as download_dir:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=headless)
-            context = browser.new_context(accept_downloads=True)
-            page = context.new_page()
+        _perform_page_login(page, username, password, otp)
 
-            _perform_page_login(page, username, password, otp)
+        print("[→] Wachten op Citrix sessie / ICA download...")
+        ica_path = _wait_for_ica(page, download_dir)
 
-            print("[→] Wachten op Citrix sessie / ICA download...")
-            ica_path = _wait_for_ica(page, Path(download_dir))
-
-            browser.close()
-
-        if ica_path:
-            open_ica(ica_path)
-            print("[✓] Klaar! Citrix Workspace wordt geopend.")
-        else:
-            print("[!] Geen ICA bestand gevonden.")
+        browser.close()
+        return ica_path
 
 
 def _perform_page_login(page: Any, username: str, password: str, otp: Optional[str]) -> None:
@@ -246,21 +311,44 @@ def _wait_for_ica(page: Any, download_dir: Path) -> Optional[Path]:
 
     print("[→] Wachten op detectiepagina...")
     try:
-        detect = page.get_by_role("link", name="Detect Citrix Workspace app")
-        detect.wait_for(state="visible", timeout=15000)
-        detect.click()
+        # 1. Klik op detectie
+        _handle_detect_button(page)
 
+        # 2. Klik op 'Already installed' en vang download op
         with page.expect_download(timeout=20000) as dl_info:
-            page.get_by_role("link", name="Already installed").click()
+            _handle_install_button(page)
+
         download = dl_info.value
         filename = download.suggested_filename or "session.ica"
         ica_path = download_dir / filename
         download.save_as(str(ica_path))
+
+        print(f"[✓] ICA succesvol gedownload naar: {ica_path}")
         return ica_path
     except PWTimeout:
-        debug_path = Path("/tmp/flex2rijk_ica_debug.png")
-        page.screenshot(path=str(debug_path))
+        print("[!] Timeout tijdens wachten op ICA download.")
+        page.screenshot(path="/tmp/flex2rijk_ica_timeout.png")
         return None
+
+
+def _handle_detect_button(page: Any) -> None:
+    """Klik op de 'Detect Citrix Workspace app' knop."""
+    try:
+        detect = page.get_by_role("link", name="Detect Citrix Workspace app")
+        detect.wait_for(state="visible", timeout=15000)
+        print("[→] 'Detect Citrix Workspace app' gevonden, klikken...")
+        detect.click()
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Knop wellicht niet aanwezig, negeer en ga door naar volgende stap
+        pass
+
+
+def _handle_install_button(page: Any) -> None:
+    """Klik op de 'Already installed' knop."""
+    installed = page.get_by_role("link", name="Already installed")
+    installed.wait_for(state="visible", timeout=10000)
+    print("[→] 'Already installed' gevonden, klikken...")
+    installed.click()
 
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────

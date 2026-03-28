@@ -70,6 +70,23 @@ uv run pre-commit run --all-files
 
 ---
 
+## CI/CD & Publicatie
+
+Dit project gebruikt GitHub Actions voor automatische tests en publicatie naar PyPI.
+
+### Automatische Publicatie (Trusted Publishing)
+Om automatisch te publiceren naar PyPI wanneer je een nieuwe tag aanmaakt (bijv. `v0.1.0`):
+
+1. Ga naar je [PyPI account settings](https://pypi.org/manage/account/publishing/).
+2. Voeg een **GitHub Publisher** toe voor dit repository:
+   - **GitHub Repository Owner**: Je username.
+   - **Repository Name**: `flex2rijk`.
+   - **Workflow Name**: `pypi-publish.yml`.
+   - **Environment Name**: `release`.
+3. Wanneer je een tag pusht, zal de GitHub Action de tool automatisch builden en uploaden naar PyPI.
+
+---
+
 ## Troubleshooting
 
 - **"os.startfile niet beschikbaar":** Gebeurt alleen als je op een niet-Windows systeem probeert de Windows flow te forceren.
