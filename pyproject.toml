@@ -5,7 +5,51 @@ description = "Automatische login tool voor flex2rijk.nl Citrix werkplek"
 requires-python = ">=3.11"
 dependencies = [
     "playwright>=1.40",
+    "keyring>=24.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-mock>=3.10.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pylint>=3.0.0",
+    "pre-commit>=3.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "C90", "I"]
+# C901 is the McCabe complexity check
+ignore = []
+
+[tool.ruff.lint.mccabe]
+max-complexity = 4
+
+[tool.pylint.master]
+ignore = ["tests"]
+
+[tool.pylint.messages_control]
+disable = [
+    "import-outside-toplevel",
+    "missing-module-docstring",
+]
+
+[tool.pylint.design]
+# Design configuration
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [project.scripts]
 flex2rijk = "flex2rijk.cli:main"
@@ -13,6 +57,16 @@ flex2rijk = "flex2rijk.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "pylint>=4.0.5",
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.8",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flex2rijk"]

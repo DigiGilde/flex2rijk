@@ -2,86 +2,130 @@
 """
 flex2rijk.py — Automatische login voor flex2rijk.nl Citrix werkplek
 
-Haalt gebruikersnaam en wachtwoord op uit macOS Keychain,
-vraagt de OneSpan 2FA code interactief op, en download + opent het ICA bestand.
-
-Setup (eenmalig):
-    python flex2rijk.py --setup
+Slaat credentials veilig op, vraagt de OneSpan 2FA code interactief op,
+en download + opent het ICA bestand.
 """
 
 import argparse
+import os
+import platform
 import subprocess
 import sys
-import time
 import tempfile
-import os
 from pathlib import Path
+from typing import Any, Optional
+
+try:
+    import keyring
+except ImportError:
+    keyring = None  # type: ignore
 
 KEYCHAIN_SERVICE = "flex2rijk"
 LOGIN_URL = "https://www.flex2rijk.nl/logon/LogonPoint/tmindex.html"
 
 
-# ── Keychain helpers ──────────────────────────────────────────────────────────
+# ── Credential helpers (Cross-platform) ───────────────────────────────────────
+
 
 def keychain_get(account: str) -> str:
-    """Lees een waarde uit macOS Keychain."""
-    result = subprocess.run(
-        ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"[!] Kan '{account}' niet vinden in Keychain voor service '{KEYCHAIN_SERVICE}'.")
-        print(f"    Voer eerst uit: python flex2rijk.py --setup")
+    """Lees een waarde uit het systeem-credential-beheer."""
+    if not keyring:
+        print("[!] Keyring-bibliotheek niet gevonden. Installeer deze met: pip install keyring")
         sys.exit(1)
-    return result.stdout.strip()
 
-
-def keychain_set(account: str, password: str):
-    """Sla een waarde op in macOS Keychain (of update als die al bestaat)."""
-    # Verwijder eerst als die al bestaat (anders fout)
-    subprocess.run(
-        ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account],
-        capture_output=True
-    )
-    result = subprocess.run(
-        ["security", "add-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", password],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"[!] Fout bij opslaan in Keychain: {result.stderr}")
+    password = keyring.get_password(KEYCHAIN_SERVICE, account)
+    if not password:
+        msg = f"[!] Kan '{account}' niet vinden in het systeem-credential-beheer."
+        print(msg)
+        print("    Voer eerst uit: flex2rijk --setup")
         sys.exit(1)
-    print(f"[✓] '{account}' opgeslagen in Keychain onder service '{KEYCHAIN_SERVICE}'")
+    return str(password)
 
 
-def setup():
-    """Interactieve setup: sla credentials op in Keychain."""
+def keychain_set(account: str, password: str) -> None:
+    """Sla een waarde op in het systeem-credential-beheer."""
+    if not keyring:
+        print("[!] Keyring-bibliotheek niet gevonden. Installeer deze met: pip install keyring")
+        sys.exit(1)
+
+    try:
+        keychain_set_with_keyring(account, password)
+    except (OSError, RuntimeError) as e:
+        print(f"[!] Fout bij opslaan in credential-beheer: {e}")
+        sys.exit(1)
+    print(f"[✓] '{account}' opgeslagen in credential-beheer onder service '{KEYCHAIN_SERVICE}'")
+
+
+def keychain_set_with_keyring(account: str, password: str) -> None:
+    """Helper om keyring.set_password aan te roepen (voor complexiteitsbeheer)."""
+    if keyring:
+        keyring.set_password(KEYCHAIN_SERVICE, account, password)
+
+
+def setup() -> None:
+    """Interactieve setup: sla credentials op in het systeem-credential-beheer."""
     import getpass
-    print("=== flex2rijk Keychain Setup ===")
-    print(f"Credentials worden opgeslagen onder Keychain service: '{KEYCHAIN_SERVICE}'\n")
 
-    username = input("Gebruikersnaam (bijv. RWS\\tijn.example of gewoon je emailadres): ").strip()
+    print("=== flex2rijk Setup ===")
+    print(f"Credentials worden opgeslagen onder service: '{KEYCHAIN_SERVICE}'\n")
+
+    username = input("Gebruikersnaam (bijv. RWS\\tijn.example of email): ").strip()
     password = getpass.getpass("Wachtwoord: ")
 
     keychain_set("username", username)
     keychain_set("password", password)
-    print("\n[✓] Setup klaar. Start de login met: python flex2rijk.py")
+    print("\n[✓] Setup klaar. Start de login met: flex2rijk")
 
 
 # ── Citrix ICA download ───────────────────────────────────────────────────────
 
-def open_ica(path: str):
-    """Open het ICA bestand met Citrix Workspace (of de standaard handler)."""
+
+def _open_ica_macos(path: Path) -> None:
+    """Open het ICA bestand op macOS."""
+    with subprocess.Popen(["open", str(path)]) as _:
+        pass
+
+
+def _open_ica_windows(path: Path) -> None:
+    """Open het ICA bestand op Windows."""
+    if hasattr(os, "startfile"):
+        os.startfile(str(path))
+    else:
+        print("[!] os.startfile niet beschikbaar op dit systeem.")
+
+
+def _open_ica_linux(path: Path) -> None:
+    """Open het ICA bestand op Linux."""
+    with subprocess.Popen(["xdg-open", str(path)]) as _:
+        pass
+
+
+def open_ica(path: Path) -> None:
+    """Open het ICA bestand met Citrix Workspace op een cross-platform manier."""
     print(f"[→] ICA bestand openen: {path}")
-    subprocess.Popen(["open", path])
+
+    current_os = platform.system().lower()
+    try:
+        if current_os == "darwin":
+            _open_ica_macos(path)
+        elif current_os == "windows":
+            _open_ica_windows(path)
+        else:
+            _open_ica_linux(path)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"[!] Kon ICA bestand niet automatisch openen: {e}")
+        print(f"    Open het bestand handmatig: {path}")
 
 
 # ── Login flow ────────────────────────────────────────────────────────────────
 
-def login(headless: bool = True, otp: str = None):
+
+def login(headless: bool = True, otp: Optional[str] = None) -> None:
+    """Voer de volledige login-flow uit."""
     try:
-        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+        from playwright.sync_api import sync_playwright
     except ImportError:
-        print("[!] Playwright niet gevonden. Installeer met: uv pip install playwright && playwright install chromium")
+        print("[!] Playwright niet gevonden. Installeer met: uv pip install playwright")
         sys.exit(1)
 
     username = keychain_get("username")
@@ -90,220 +134,113 @@ def login(headless: bool = True, otp: str = None):
     print(f"[✓] Credentials geladen voor: {username}")
     print("[→] Browser starten...")
 
-    # Tijdelijke download map
-    download_dir = tempfile.mkdtemp(prefix="flex2rijk_")
+    with tempfile.TemporaryDirectory(prefix="flex2rijk_") as download_dir:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless)
+            context = browser.new_context(accept_downloads=True)
+            page = context.new_page()
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
-        context = browser.new_context(accept_downloads=True)
-        page = context.new_page()
+            _perform_page_login(page, username, password, otp)
 
-        print(f"[→] Navigeren naar {LOGIN_URL}")
-        page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
+            print("[→] Wachten op Citrix sessie / ICA download...")
+            ica_path = _wait_for_ica(page, Path(download_dir))
 
-        # ── Inloggen ──
-        print("[→] Wachten op loginformulier...")
-        page.get_by_role("textbox", name="User name:").wait_for(state="visible", timeout=15000)
+            browser.close()
 
-        print("[→] Gebruikersnaam invullen...")
-        page.get_by_role("textbox", name="User name:").fill(username)
+        if ica_path:
+            open_ica(ica_path)
+            print("[✓] Klaar! Citrix Workspace wordt geopend.")
+        else:
+            print("[!] Geen ICA bestand gevonden.")
 
-        print("[→] Wachtwoord invullen...")
-        page.get_by_role("textbox", name="Password:").fill(password)
 
-        if not otp:
-            print("\n" + "="*50)
-            otp = input("🔐 Voer je OneSpan token in: ").strip()
-            print("="*50 + "\n")
+def _perform_page_login(page: Any, username: str, password: str, otp: Optional[str]) -> None:
+    """Navigeer naar de loginpagina en vul de gegevens in."""
+    print(f"[→] Navigeren naar {LOGIN_URL}")
+    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
 
-        print("[→] Token invullen...")
-        page.get_by_role("textbox", name="Token:").fill(otp)
+    print("[→] Wachten op loginformulier...")
+    page.get_by_role("textbox", name="User name:").wait_for(state="visible", timeout=15000)
 
-        print("[→] Log On klikken...")
-        page.get_by_role("link", name="Log On").click()
+    print("[→] Gebruikersnaam invullen...")
+    page.get_by_role("textbox", name="User name:").fill(username)
 
-        # ── Wacht op ICA download of desktop launcher ──
-        print("[→] Wachten op Citrix sessie / ICA download...")
-        ica_path = _wait_for_ica(page, context, download_dir)
+    print("[→] Wachtwoord invullen...")
+    page.get_by_role("textbox", name="Password:").fill(password)
 
-        browser.close()
+    if not otp:
+        print("\n" + "=" * 50)
+        otp = input("🔐 Voer je OneSpan token in: ").strip()
+        print("=" * 50 + "\n")
 
-    if ica_path:
-        open_ica(ica_path)
-        print("[✓] Klaar! Citrix Workspace wordt geopend.")
-    else:
-        print("[!] Geen ICA bestand gevonden. Mogelijk is de sessie al direct geopend via de browser.")
+    print("[→] Token invullen...")
+    page.get_by_role("textbox", name="Token:").fill(otp)
+
+    print("[→] Log On klikken...")
+    page.get_by_role("link", name="Log On").click()
 
 
 # ── Page interaction helpers ──────────────────────────────────────────────────
 
-def _wait_for_login_form(page):
-    """Wacht tot er een username of password input zichtbaar is."""
-    from playwright.sync_api import TimeoutError as PWTimeout
+
+def _click_login(page: Any) -> None:
+    """Klik op de login/submit knop (fallback voor complexe pagina's)."""
+    from playwright.sync_api import Error as PWError
 
     selectors = [
-        "input[name='login']",
-        "input[name='passwd']",
-        "input[id='login']",
-        "input[id='passwd']",
-        "input[type='text']",
-        "input[placeholder*='gebruiker' i]",
-        "input[placeholder*='user' i]",
-        "input[autocomplete='username']",
-        "#loginForm",
-        ".login-form",
+        "input[type='submit']",
+        "button[type='submit']",
+        "input[value='Log On' i]",
+        "#loginBtn",
     ]
-
     combined = ", ".join(selectors)
-    try:
-        page.wait_for_selector(combined, timeout=15000, state="visible")
-        print("[✓] Loginformulier gevonden")
-        return
-    except PWTimeout:
-        pass
-
-    # Als niets werkt: screenshot voor debug
-    page.screenshot(path="/tmp/flex2rijk_debug.png")
-    print("[!] Loginformulier niet herkend. Screenshot opgeslagen in /tmp/flex2rijk_debug.png")
-    print("    Probeer opnieuw met: python flex2rijk.py --no-headless")
-    sys.exit(1)
-
-
-def _fill_username(page, username: str):
-    """Vul gebruikersnaam in — probeert meerdere bekende Citrix selectors."""
-    selectors = [
-        "input[name='login']",
-        "input[id='login']",
-        "input[autocomplete='username']",
-        "input[type='text']:visible",
-        "input[placeholder*='user' i]",
-        "input[placeholder*='naam' i]",
-    ]
-    _fill_first_match(page, selectors, username, "gebruikersnaam")
-
-
-def _fill_password(page, password: str):
-    """Vul wachtwoord in."""
-    selectors = [
-        "input[name='passwd']",
-        "input[id='passwd']",
-        "input[type='password']",
-        "input[autocomplete='current-password']",
-    ]
-    _fill_first_match(page, selectors, password, "wachtwoord")
-
-
-def _fill_2fa(page, otp: str):
-    """Vul de 2FA code in."""
-    selectors = [
-        "input[name='passwd1']",      # Citrix tweede factor veld
-        "input[name='passwd2']",
-        "input[id='passwd1']",
-        "input[id='passwd2']",
-        "input[name='otp']",
-        "input[name='passcode']",
-        "input[placeholder*='code' i]",
-        "input[placeholder*='token' i]",
-        "input[type='password']",     # Fallback: enige password veld zichtbaar
-        "input[type='text']:visible", # Of text veld
-    ]
-    _fill_first_match(page, selectors, otp, "2FA code")
-
-
-def _fill_first_match(page, selectors: list, value: str, label: str):
-    """Probeer selectors op volgorde en vul de eerste werkende in."""
-    from playwright.sync_api import TimeoutError as PWTimeout
-
-    for sel in selectors:
-        try:
-            el = page.wait_for_selector(sel, timeout=3000, state="visible")
-            if el:
-                el.fill(value)
-                print(f"[✓] {label} ingevuld via: {sel}")
-                return
-        except PWTimeout:
-            continue
-
-    page.screenshot(path="/tmp/flex2rijk_debug.png")
-    print(f"[!] Kon {label} veld niet vinden. Screenshot: /tmp/flex2rijk_debug.png")
-    sys.exit(1)
-
-
-def _click_login(page):
-    """Klik op de login/submit knop."""
-    from playwright.sync_api import TimeoutError as PWTimeout
-
-    combined = "input[type='submit'], button[type='submit'], input[value='Log On' i], input[value='Inloggen' i], #loginBtn"
 
     try:
         btn = page.wait_for_selector(combined, timeout=5000, state="visible")
         if btn:
             btn.click()
             print("[✓] Login knop geklikt")
-            time.sleep(1)
             return
-    except PWTimeout:
+    except PWError:
+        # Fallback bij fouten (bijv. timeout of navigatie tijdens selector wacht)
         pass
 
-    # Fallback 1: JS click op eerste submit element
-    clicked = page.evaluate("""() => {
+    _click_login_fallback(page)
+
+
+def _click_login_fallback(page: Any) -> None:
+    """JS-gebaseerde fallbacks voor het klikken op de login-knop."""
+    clicked = page.evaluate(
+        """() => {
         const btn = document.querySelector("input[type='submit'], button[type='submit']");
         if (btn) { btn.click(); return true; }
         return false;
-    }""")
+    }"""
+    )
     if clicked:
         print("[✓] Login knop geklikt via JavaScript")
-        time.sleep(1)
         return
 
-    # Fallback 2: Submit het formulier direct
-    submitted = page.evaluate("""() => {
+    _submit_form_fallback(page)
+
+
+def _submit_form_fallback(page: Any) -> None:
+    """JS-gebaseerde fallback voor het submiten van het formulier."""
+    submitted = page.evaluate(
+        """() => {
         const form = document.querySelector("form");
         if (form) { form.submit(); return true; }
         return false;
-    }""")
+    }"""
+    )
     if submitted:
         print("[✓] Formulier gesubmit via JavaScript")
-        time.sleep(1)
         return
 
     print("[!] Kon login knop niet vinden of klikken")
 
 
-def _wait_for_2fa(page):
-    """Wacht tot het 2FA scherm verschijnt."""
-    from playwright.sync_api import TimeoutError as PWTimeout
-
-    # Citrix NetScaler gebruikt passwd1 of een tweede wachtwoordveld voor 2FA
-    selectors = [
-        "input[name='passwd1']",
-        "input[name='passwd2']",
-        "input[name='otp']",
-        "input[name='passcode']",
-        "input[placeholder*='code' i]",
-        "input[placeholder*='token' i]",
-    ]
-
-    combined = ", ".join(selectors)
-    print("[→] Wachten op 2FA veld (max 20s)...")
-    try:
-        page.wait_for_selector(combined, timeout=20000, state="visible")
-        print("[✓] 2FA veld gevonden")
-        return
-    except PWTimeout:
-        pass
-
-    # 2FA veld niet gevonden: screenshot en stoppen
-    page.screenshot(path="/tmp/flex2rijk_2fa_debug.png")
-    print("[!] 2FA veld niet gevonden. Screenshot: /tmp/flex2rijk_2fa_debug.png")
-    print("    Probeer opnieuw met: flex2rijk --no-headless")
-    sys.exit(1)
-
-
-STORE_URL = "https://www.flex2rijk.nl/Citrix/DWR-StoreWeb/"
-
-
-def _wait_for_ica(page, context, download_dir: str) -> str | None:
+def _wait_for_ica(page: Any, download_dir: Path) -> Optional[Path]:
     """Wacht tot de login redirect naar de store leidt en vang de ICA download op."""
     from playwright.sync_api import TimeoutError as PWTimeout
 
@@ -311,31 +248,30 @@ def _wait_for_ica(page, context, download_dir: str) -> str | None:
     try:
         detect = page.get_by_role("link", name="Detect Citrix Workspace app")
         detect.wait_for(state="visible", timeout=15000)
-        print("[→] 'Detect Citrix Workspace app' klikken...")
         detect.click()
 
-        print("[→] 'Already installed' klikken...")
         with page.expect_download(timeout=20000) as dl_info:
             page.get_by_role("link", name="Already installed").click()
         download = dl_info.value
-        ica_path = os.path.join(download_dir, download.suggested_filename or "session.ica")
-        download.save_as(ica_path)
-        print(f"[✓] ICA gedownload: {ica_path}")
+        filename = download.suggested_filename or "session.ica"
+        ica_path = download_dir / filename
+        download.save_as(str(ica_path))
         return ica_path
     except PWTimeout:
-        page.screenshot(path="/tmp/flex2rijk_ica_debug.png")
-        print(f"[!] Mislukt. URL: {page.url}")
-        print(f"    Screenshot: /tmp/flex2rijk_ica_debug.png")
+        debug_path = Path("/tmp/flex2rijk_ica_debug.png")
+        page.screenshot(path=str(debug_path))
         return None
 
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 
-def main():
+
+def main() -> None:
+    """Main entrypoint voor de CLI."""
     parser = argparse.ArgumentParser(description="flex2rijk.nl automatische login")
-    parser.add_argument("token", nargs="?", help="OneSpan token (optioneel, anders interactief gevraagd)")
-    parser.add_argument("--setup", action="store_true", help="Sla credentials op in macOS Keychain")
-    parser.add_argument("--no-headless", action="store_true", help="Toon de browser (handig voor debuggen)")
+    parser.add_argument("token", nargs="?", help="OneSpan token")
+    parser.add_argument("--setup", action="store_true", help="Sla credentials op")
+    parser.add_argument("--no-headless", action="store_true", help="Toon de browser")
     args = parser.parse_args()
 
     if args.setup:
