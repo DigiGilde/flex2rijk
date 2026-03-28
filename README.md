@@ -24,17 +24,15 @@ Automatiseert de login op flex2rijk.nl:
 
 ### 1. Installeer de tool (via uv)
 
-```bash
-uv tool install .
-```
-
-### 2. Installeer de Chromium browser
+De makkelijkste manier is via `uv`. Dit installeert de tool in een geïsoleerde omgeving:
 
 ```bash
-uvx --from flex2rijk playwright install chromium
+uv tool install flex2rijk
 ```
 
-### 3. Setup credentials (eenmalig)
+### 2. Setup credentials (eenmalig)
+
+Sla je gebruikersnaam en wachtwoord veilig op in je systeem-keychain:
 
 ```bash
 flex2rijk --setup
@@ -46,6 +44,7 @@ flex2rijk --setup
 
 ```bash
 # Start login (browser op achtergrond)
+# Bij de eerste keer wordt Chromium automatisch geïnstalleerd
 flex2rijk
 
 # Debug modus (browser zichtbaar)
@@ -59,12 +58,16 @@ flex2rijk 123456
 
 ## Ontwikkeling
 
-Deze tool hanteert strikte kwaliteitseisen:
-- **McCabe Complexity:** Maximaal 4.
-- **Typing:** Strict MyPy.
-- **Linting:** Ruff & Pylint.
+### Installeren vanaf source
+Als je de tool wilt aanpassen of testen vanaf de broncode:
 
-### Setup development omgeving
+```bash
+git clone https://github.com/tijnschouten/flex2rijk.git
+cd flex2rijk
+uv tool install .
+```
+
+### Development omgeving setup
 ```bash
 uv sync --all-groups
 uv run pre-commit install
