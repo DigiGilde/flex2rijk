@@ -20,12 +20,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     import keyring
 except ImportError:
-    keyring = None  # type: ignore
+    keyring = None  # type: ignore[assignment]
 
 KEYCHAIN_SERVICE = "flex2rijk"
 # Absolute paden: een andere 'security' eerder in PATH zou het wachtwoord via stdin
@@ -37,14 +37,14 @@ SECURITY_ITEM_NOT_FOUND = 44
 # Staat in het commentaarveld van items die met een lege lijst vertrouwde apps zijn opgeslagen
 CONFIRM_ACCESS_MARKER = "flex2rijk:confirm-access"
 # Accountnamen in de Keychain/keyring blijven Engels, anders vindt de tool bestaande items niet
-ACCOUNT_LABELS = {"username": "gebruikersnaam", "password": "wachtwoord"}
+ACCOUNT_LABELS = {"username": "gebruikersnaam", "password": "wachtwoord"}  # nosec B105
 LOGIN_URL = "https://www.flex2rijk.nl/logon/LogonPoint/tmindex.html"
 
 
 # ── Credential helpers (Multi-platform) ───────────────────────────────────────
 
 
-def keychain_get(account: str) -> Optional[str]:
+def keychain_get(account: str) -> str | None:
     """Lees een waarde uit het systeem-credential-beheer; None als die ontbreekt."""
     if platform.system() == "Darwin":
         return _macos_keychain_get(account)
@@ -66,17 +66,17 @@ def keychain_delete(account: str) -> None:
     """Verwijder een waarde uit het systeem-credential-beheer, als die bestaat."""
     if platform.system() == "Darwin":
         cmd = [SECURITY_BIN, "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account]
-        subprocess.run(cmd, capture_output=True, check=False)
+        subprocess.run(cmd, capture_output=True, check=False)  # nosec B603
     else:
         _keyring_delete(account)
 
 
-def _macos_keychain_get(account: str) -> Optional[str]:
+def _macos_keychain_get(account: str) -> str | None:
     """Lees een waarde direct uit de macOS Keychain via de 'security' CLI."""
     # Niet -w: dat geeft waarden met niet-ASCII-tekens of een backslash als hex terug,
     # zonder dat je dat aan de uitvoer kunt zien.
     cmd = [SECURITY_BIN, "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-g"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)  # nosec B603
     if result.returncode == SECURITY_ITEM_NOT_FOUND:
         return None
     if result.returncode != 0:
@@ -94,10 +94,10 @@ def _parse_security_password(output: str) -> str:
     return value[2:-1]
 
 
-def _macos_keychain_attributes(account: str) -> Optional[str]:
+def _macos_keychain_attributes(account: str) -> str | None:
     """Lees de kenmerken van een item, of None als het ontbreekt. Leest het geheim niet."""
     cmd = [SECURITY_BIN, "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)  # nosec B603
     return result.stdout if result.returncode == 0 else None
 
 
@@ -114,7 +114,7 @@ def _macos_keychain_set(account: str, password: str, confirm_access: bool) -> No
     # -w als laatste optie: security leest de waarde (twee keer) van stdin,
     # zodat die niet als argument in de proceslijst staat.
     add_cmd.append("-w")
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603
         add_cmd,
         input=f"{password}\n{password}\n",
         capture_output=True,
@@ -129,7 +129,7 @@ def _macos_keychain_set(account: str, password: str, confirm_access: bool) -> No
     print(f"[✓] {ACCOUNT_LABELS[account].capitalize()} opgeslagen in de macOS Keychain.")
 
 
-def _keyring_get(account: str) -> Optional[str]:
+def _keyring_get(account: str) -> str | None:
     """Lees een waarde via de 'keyring' bibliotheek (Windows/Linux)."""
     if not keyring:
         print("[!] Keyring-bibliotheek niet gevonden.")
@@ -234,14 +234,14 @@ def _remove_plaintext_keyring() -> None:
 
 def _open_ica_macos(path: Path) -> None:
     """Open het ICA bestand op macOS met subprocess.Popen."""
-    with subprocess.Popen([OPEN_BIN, str(path.absolute())]) as _:
+    with subprocess.Popen([OPEN_BIN, str(path.absolute())]) as _:  # nosec B603
         pass
 
 
 def _open_ica_windows(path: Path) -> None:
     """Open het ICA bestand op Windows."""
     if hasattr(os, "startfile"):
-        os.startfile(str(path.absolute()))
+        os.startfile(str(path.absolute()))  # nosec B606
     else:
         print("[!] os.startfile niet beschikbaar op dit systeem.")
 
@@ -249,7 +249,7 @@ def _open_ica_windows(path: Path) -> None:
 def _open_ica_linux(path: Path) -> None:
     """Open het ICA bestand op Linux met subprocess.Popen."""
     # xdg-open staat per distributie op een ander pad
-    with subprocess.Popen(["xdg-open", str(path.absolute())]) as _:  # nosec B607
+    with subprocess.Popen(["xdg-open", str(path.absolute())]) as _:  # nosec B603, B607
         pass
 
 
@@ -293,7 +293,7 @@ def _read_password() -> str:
     return keychain_get("password") or getpass.getpass("Wachtwoord: ")
 
 
-def _migrate_macos_password() -> Optional[str]:
+def _migrate_macos_password() -> str | None:
     """Sla een wachtwoord van versie 0.1.0, dat elk proces kon lezen, opnieuw op."""
     # Het oude item vertrouwt 'security', dus dit lezen geeft nog geen dialoog.
     password = _macos_keychain_get("password")
@@ -303,7 +303,7 @@ def _migrate_macos_password() -> Optional[str]:
     return password
 
 
-def login(headless: bool = True, otp: Optional[str] = None) -> None:
+def login(headless: bool = True, otp: str | None = None) -> None:
     """Voer de volledige login-flow uit."""
     username = keychain_get("username") or input("Gebruikersnaam: ").strip()
     password = _read_password()
@@ -323,12 +323,12 @@ def login(headless: bool = True, otp: Optional[str] = None) -> None:
 
 
 def _run_browser(
-    headless: bool, username: str, password: str, otp: Optional[str], download_dir: Path
-) -> Optional[Path]:
+    headless: bool, username: str, password: str, otp: str | None, download_dir: Path
+) -> Path | None:
     """Start de browser en voer de login uit."""
     _ensure_playwright_browsers()
 
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
     print("[→] Browser starten...")
     with sync_playwright() as p:
@@ -348,21 +348,21 @@ def _run_browser(
 def _ensure_playwright_browsers() -> None:
     """Controleer of Playwright browsers zijn geïnstalleerd, installeer ze zo niet."""
     try:
-        from playwright.sync_api import sync_playwright
+        from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
         with sync_playwright() as p:
             # Probeer browser te starten om te checken of deze er is
             browser = p.chromium.launch()
             browser.close()
-    except (ImportError, Exception):  # pylint: disable=broad-exception-caught
+    except (ImportError, Exception):  # noqa: BLE001
         print("[→] Playwright browser (Chromium) niet gevonden. Installeren...")
         # Installeer alleen chromium (is sneller en kleiner dan alles)
         cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True)  # nosec B603
         print("[✓] Chromium succesvol geïnstalleerd.")
 
 
-def _perform_page_login(page: Any, username: str, password: str, otp: Optional[str]) -> None:
+def _perform_page_login(page: Any, username: str, password: str, otp: str | None) -> None:
     """Navigeer naar de loginpagina en vul de gegevens in."""
     print(f"[→] Navigeren naar {LOGIN_URL}")
     page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
@@ -391,9 +391,9 @@ def _perform_page_login(page: Any, username: str, password: str, otp: Optional[s
 # ── Page interaction helpers ──────────────────────────────────────────────────
 
 
-def _wait_for_ica(page: Any, download_dir: Path) -> Optional[Path]:
+def _wait_for_ica(page: Any, download_dir: Path) -> Path | None:
     """Wacht tot de login redirect naar de store leidt en vang de ICA download op."""
-    from playwright.sync_api import TimeoutError as PWTimeout
+    from playwright.sync_api import TimeoutError as PWTimeout  # noqa: PLC0415
 
     print("[→] Wachten op detectiepagina...")
     try:
@@ -430,7 +430,7 @@ def _handle_detect_button(page: Any) -> None:
         detect.wait_for(state="visible", timeout=15000)
         print("[→] 'Detect Citrix Workspace app' gevonden, klikken...")
         detect.click()
-    except Exception:  # pylint: disable=broad-exception-caught  # nosec B110
+    except Exception:  # noqa: BLE001  # nosec B110
         # Knop wellicht niet aanwezig, negeer en ga door naar volgende stap
         pass
 
