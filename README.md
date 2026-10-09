@@ -38,6 +38,18 @@ Sla je gebruikersnaam en wachtwoord veilig op in je systeem-keychain:
 flex2rijk --setup
 ```
 
+Sla je niets op, dan vraagt de tool bij elke login om je gebruikersnaam en wachtwoord. Eerder opgeslagen gegevens verwijder je met `flex2rijk --setup --no-store`.
+
+Heb je de setup gedaan met versie 0.1.0? Op macOS zet de eerstvolgende login je wachtwoord vanzelf over naar de strengere toegangsregels hieronder. Op Linux haalt `flex2rijk --setup` het wachtwoord weg dat versie 0.1.0 onversleuteld in `~/.local/share/python_keyring/keyring_pass.cfg` kon zetten.
+
+### Hoe je wachtwoord wordt bewaard
+
+- **macOS:** het wachtwoord staat in je Keychain, zonder vertrouwde apps. Bij elke login vraagt macOS of `security` het mag uitlezen. Kies **Sta toe** om alleen deze keer toegang te geven. Kies je **Sta altijd toe**, dan kan elk proces op je Mac het wachtwoord voortaan zonder vragen uitlezen. Die keuze is aan jou.
+- **Linux:** het wachtwoord staat in de Secret Service (GNOME Keyring, KWallet). Is er geen Secret Service, bijvoorbeeld op een server of in WSL, dan weigert de tool op te slaan in plaats van het wachtwoord onversleuteld in een bestand te zetten. Sla de setup dan over: bij elke login vraagt de tool om je gegevens.
+- **Windows:** het wachtwoord staat in Windows Credential Manager.
+
+Op Linux en Windows kan elk proces dat onder jouw account draait het opgeslagen wachtwoord lezen zolang je bent ingelogd. Een toestemmingsvraag per uitlezing bestaat daar niet. Wil je dat niet, gebruik dan `--no-store`.
+
 ---
 
 ## Gebruik
