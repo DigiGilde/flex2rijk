@@ -8,7 +8,7 @@ Automatiseert de login op flex2rijk.nl:
 - **Cross-platform:** Werkt op macOS, Windows en Linux.
 - **Veilig:** Slaat credentials op in je systeem-keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) via `keyring`.
 - **Modern:** Volledig herschreven in moderne Python (Pathlib, Type Hinting).
-- **Robuust:** Bevat unit tests en strikte linting (Ruff, MyPy, Pylint).
+- **Robuust:** Bevat unit tests met 100% coverage en strikte linting (Ruff, MyPy, Bandit).
 
 ## Disclaimer
 
