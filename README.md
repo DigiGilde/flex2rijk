@@ -24,7 +24,21 @@ Automatiseert de login op flex2rijk.nl:
 
 ### 1. Installeer de tool (via uv)
 
-De makkelijkste manier is via `uv`. Dit installeert de tool in een geïsoleerde omgeving:
+De makkelijkste manier is via `uv`. Dit installeert de tool in een geïsoleerde omgeving.
+
+#### Vanaf de DigiGilde-fork
+
+Dit is een fork van [tijnschouten/flex2rijk](https://github.com/tijnschouten/flex2rijk), gemaakt door Tijn Schouten. Deze versie bevat security-verbeteringen die nog niet op PyPI staan. Installeer hem direct vanaf GitHub:
+
+```bash
+uv tool install git+https://github.com/DigiGilde/flex2rijk
+```
+
+Bijwerken gaat met `uv tool upgrade flex2rijk`.
+
+#### Vanaf PyPI
+
+De originele versie, zonder de verbeteringen van deze fork:
 
 ```bash
 uv tool install flex2rijk
