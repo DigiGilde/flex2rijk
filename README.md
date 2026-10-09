@@ -1,4 +1,4 @@
-# flex2rijk
+# Flex2Rijk CLI
 
 [![PyPI version](https://badge.fury.io/py/flex2rijk.svg)](https://badge.fury.io/py/flex2rijk)
 [![CI & Publish](https://github.com/tijnschouten/flex2rijk/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/tijnschouten/flex2rijk/actions/workflows/pypi-publish.yml)
@@ -12,11 +12,11 @@ Automatiseert de login op flex2rijk.nl:
 
 ## Disclaimer
 
-**Let op:** Deze tool is **geen** officieel product van flex2rijk of de betrokken overheidsinstanties. De auteur is op geen enkele wijze geassocieerd met flex2rijk.nl.
+**Let op:** Deze tool is **geen** officieel product van Flex2Rijk of de betrokken overheidsinstanties. De auteur is op geen enkele wijze geassocieerd met flex2rijk.nl.
 
 - **Geen Support:** Deze tool wordt geleverd "as-is" zonder enige vorm van garantie of support.
 - **Eigen Risico:** Het gebruik van deze tool is volledig voor eigen risico. De auteur is niet verantwoordelijk voor eventuele schade, verlies van gegevens, of beveiligingsincidenten (zoals het verlies van wachtwoorden).
-- **Doel:** Deze tool is uitsluitend bedoeld om de login-flow te automatiseren voor gebruikers die reeds rechtmatige toegang hebben tot de flex2rijk omgeving.
+- **Doel:** Deze tool is uitsluitend bedoeld om de login-flow te automatiseren voor gebruikers die reeds rechtmatige toegang hebben tot de Flex2Rijk-omgeving.
 
 ---
 

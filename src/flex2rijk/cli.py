@@ -184,7 +184,7 @@ def _keyring_delete(account: str) -> None:
 
 def setup(store: bool = True) -> None:
     """Interactieve setup: sla credentials op, of verwijder ze met store=False."""
-    print("=== flex2rijk Setup ===")
+    print("=== Flex2Rijk CLI setup ===")
     if platform.system() == "Linux":
         _remove_plaintext_keyring()
     if store:
@@ -212,7 +212,7 @@ def _store_credentials() -> None:
     keychain_set("password", password, confirm_access=True)
     if platform.system() == "Darwin":
         print("[i] Bij elke login vraagt macOS om toegang tot je wachtwoord. In dat venster")
-        print("    staat 'security': het programma waarmee flex2rijk de Keychain leest.")
+        print("    staat 'security': het programma waarmee de Flex2Rijk CLI de Keychain leest.")
     print("\n[✓] Setup klaar. Start de login met: flex2rijk")
 
 
@@ -226,7 +226,7 @@ def _remove_plaintext_keyring() -> None:
         return
     with path.open("w") as f:
         config.write(f)
-    print(f"[✓] Onversleutelde gegevens van flex2rijk verwijderd uit {path}")
+    print(f"[✓] Onversleutelde gegevens van de Flex2Rijk CLI verwijderd uit {path}")
 
 
 # ── Citrix ICA download ───────────────────────────────────────────────────────
@@ -448,7 +448,9 @@ def _handle_install_button(page: Any) -> None:
 
 def main() -> None:
     """Main entrypoint voor de CLI."""
-    parser = argparse.ArgumentParser(description="flex2rijk.nl automatische login")
+    parser = argparse.ArgumentParser(
+        description="Flex2Rijk CLI: automatische login op flex2rijk.nl"
+    )
     parser.add_argument("token", nargs="?", help="OneSpan token")
     parser.add_argument("--setup", action="store_true", help="Sla credentials op")
     parser.add_argument("--no-headless", action="store_true", help="Toon de browser")
