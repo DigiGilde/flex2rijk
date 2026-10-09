@@ -266,63 +266,6 @@ def _perform_page_login(page: Any, username: str, password: str, otp: Optional[s
 # ── Page interaction helpers ──────────────────────────────────────────────────
 
 
-def _click_login(page: Any) -> None:
-    """Klik op de login/submit knop (fallback voor complexe pagina's)."""
-    from playwright.sync_api import Error as PWError
-
-    selectors = [
-        "input[type='submit']",
-        "button[type='submit']",
-        "input[value='Log On' i]",
-        "#loginBtn",
-    ]
-    combined = ", ".join(selectors)
-
-    try:
-        btn = page.wait_for_selector(combined, timeout=5000, state="visible")
-        if btn:
-            btn.click()
-            print("[✓] Login knop geklikt")
-            return
-    except PWError:
-        # Fallback bij fouten (bijv. timeout of navigatie tijdens selector wacht)
-        pass
-
-    _click_login_fallback(page)
-
-
-def _click_login_fallback(page: Any) -> None:
-    """JS-gebaseerde fallbacks voor het klikken op de login-knop."""
-    clicked = page.evaluate(
-        """() => {
-        const btn = document.querySelector("input[type='submit'], button[type='submit']");
-        if (btn) { btn.click(); return true; }
-        return false;
-    }"""
-    )
-    if clicked:
-        print("[✓] Login knop geklikt via JavaScript")
-        return
-
-    _submit_form_fallback(page)
-
-
-def _submit_form_fallback(page: Any) -> None:
-    """JS-gebaseerde fallback voor het submiten van het formulier."""
-    submitted = page.evaluate(
-        """() => {
-        const form = document.querySelector("form");
-        if (form) { form.submit(); return true; }
-        return false;
-    }"""
-    )
-    if submitted:
-        print("[✓] Formulier gesubmit via JavaScript")
-        return
-
-    print("[!] Kon login knop niet vinden of klikken")
-
-
 def _wait_for_ica(page: Any, download_dir: Path) -> Optional[Path]:
     """Wacht tot de login redirect naar de store leidt en vang de ICA download op."""
     from playwright.sync_api import TimeoutError as PWTimeout
