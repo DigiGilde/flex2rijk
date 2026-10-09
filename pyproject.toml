@@ -16,7 +16,6 @@ classifiers = [
 dependencies = [
     "playwright>=1.40",
     "keyring>=24.0.0",
-    "keyrings-alt>=5.0.2",
 ]
 
 [project.optional-dependencies]

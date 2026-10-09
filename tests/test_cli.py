@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-import pytest
 from flex2rijk.cli import keychain_get, keychain_set, open_ica
 
 
@@ -13,7 +12,7 @@ def test_keychain_get_success(mocker: Any) -> None:
         # Mock macOS subprocess run
         mock_run = mocker.patch("subprocess.run")
         mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = "secret_password\n"
+        mock_run.return_value.stderr = 'password: "secret_password"\n'
         mocker.patch("platform.system", return_value="Darwin")
 
         result = keychain_get("username")
@@ -29,13 +28,12 @@ def test_keychain_get_success(mocker: Any) -> None:
 
 
 def test_keychain_get_failure(mocker: Any) -> None:
-    """Test falen van ophalen."""
+    """Test dat een geweigerde uitlezing None geeft."""
     mocker.patch("platform.system", return_value="Darwin")
     mock_run = mocker.patch("subprocess.run")
     mock_run.return_value.returncode = 1
 
-    with pytest.raises(SystemExit):
-        keychain_get("username")
+    assert keychain_get("username") is None
 
 
 def test_keychain_set_success(mocker: Any) -> None:
@@ -59,7 +57,7 @@ def test_open_ica_macos(mocker: Any) -> None:
     path = Path("/tmp/test.ica")
     open_ica(path)
 
-    mock_popen.assert_called_once_with(["open", str(path.absolute())])
+    mock_popen.assert_called_once_with(["/usr/bin/open", str(path.absolute())])
 
 
 def test_open_ica_windows(mocker: Any) -> None:
