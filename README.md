@@ -73,10 +73,20 @@ Op Linux en Windows kan elk proces dat onder jouw account draait het opgeslagen 
 # Bij de eerste keer wordt Chromium automatisch geïnstalleerd
 flex2rijk
 
+# Start in-browser versie van Citrix (light mode)
+flex2rijk --light
+
+# Light mode met automatisch camera/microfoon toegang (voor webcam sessies)
+flex2rijk --light --grant
+
+# Light mode met OneSpan token (geen aparte invoer nodig)
+flex2rijk --light 123456
+flex2rijk --light 123456 --grant
+
 # Debug modus (browser zichtbaar)
 flex2rijk --no-headless
 
-# OneSpan token direct meegeven
+# OneSpan token direct meegeven (normale modus)
 flex2rijk 123456
 ```
 
