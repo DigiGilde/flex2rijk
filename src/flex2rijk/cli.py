@@ -9,6 +9,8 @@ DISCLAIMER: Deze tool is niet geassocieerd met flex2rijk.nl. Gebruik is op eigen
 De auteur biedt geen support en is niet verantwoordelijk voor eventueel verlies van data.
 """
 
+from threading import Event
+
 import argparse
 import configparser
 import contextlib
@@ -303,12 +305,17 @@ def _migrate_macos_password() -> str | None:
     return password
 
 
-def login(headless: bool = True, otp: str | None = None) -> None:
+def login(
+    headless: bool = True, light: bool = False, otp: str | None = None, grant: bool = False
+) -> None:
     """Voer de volledige login-flow uit."""
     username = keychain_get("username") or input("Gebruikersnaam: ").strip()
     password = _read_password()
 
     print(f"[✓] Credentials geladen voor: {username}")
+    if light:
+        _run_light(username, password, otp, grant)
+        return
 
     with tempfile.TemporaryDirectory(prefix="flex2rijk_") as download_dir:
         ica_path = _run_browser(headless, username, password, otp, Path(download_dir))
@@ -320,6 +327,44 @@ def login(headless: bool = True, otp: str | None = None) -> None:
             time.sleep(15)
         else:
             print("[!] Geen ICA bestand gevonden.")
+
+
+def _run_light(
+    username: str,
+    password: str,
+    otp: str | None,
+    grant: bool = False,
+) -> None:
+    _ensure_playwright_browsers()
+
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout  # noqa: PLC0415
+
+    print("[→] Browser starten max...")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+        permissions = []
+        if grant:
+            permissions = ["camera", "microphone"]
+        context = browser.new_context(
+            accept_downloads=True, no_viewport=True, permissions=permissions
+        )
+        page = context.new_page()
+
+        try:
+            _perform_page_login(page, username, password, otp)
+
+            print("[→] Start light session...")
+            _handle_detect_button(page)
+            _handle_light_button(page)
+        except PWTimeout:
+            print("[!] Timeout tijdens wachten starten van sessie")
+            # mkstemp: uniek pad, alleen leesbaar voor de gebruiker (de pagina toont mogelijk
+            # gegevens van na de login)
+            fd, screenshot = tempfile.mkstemp(prefix="flex2rijk_sessie_timeout_", suffix=".png")
+            os.close(fd)
+            page.screenshot(path=screenshot)
+            print(f"    Screenshot: {screenshot}")
+            return
 
 
 def _run_browser(
@@ -435,6 +480,19 @@ def _handle_detect_button(page: Any) -> None:
         pass
 
 
+def _handle_light_button(page: Any) -> None:
+    """Klik op de 'light version knop."""
+    light_version = page.get_by_role("link", name="Use light version")
+    light_version.wait_for(state="visible", timeout=10000)
+    print("[→] 'Use light version' gevonden, klikken...")
+    light_version.click()
+    print("[→] 'Light version blijft draaien tot dit process gestopt wordt.")
+    try:
+        Event().wait()
+    except KeyboardInterrupt:
+        return
+
+
 def _handle_install_button(page: Any) -> None:
     """Klik op de 'Already installed' knop."""
     installed = page.get_by_role("link", name="Already installed")
@@ -454,10 +512,16 @@ def main() -> None:
     parser.add_argument("token", nargs="?", help="OneSpan token")
     parser.add_argument("--setup", action="store_true", help="Sla credentials op")
     parser.add_argument("--no-headless", action="store_true", help="Toon de browser")
+    parser.add_argument("--light", action="store_true", help="Login met de browser")
     parser.add_argument(
         "--no-store",
         action="store_true",
         help="Sla bij --setup niets op en verwijder opgeslagen gegevens",
+    )
+    parser.add_argument(
+        "--grant",
+        action="store_true",
+        help="Grant camera and microphone permissions for flex2rijk.nl",
     )
     args = parser.parse_args()
 
@@ -466,7 +530,7 @@ def main() -> None:
     if args.setup:
         setup(store=not args.no_store)
     else:
-        login(headless=not args.no_headless, otp=args.token)
+        login(headless=not args.no_headless, light=args.light, otp=args.token, grant=args.grant)
 
 
 if __name__ == "__main__":
